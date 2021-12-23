@@ -37,6 +37,7 @@
   },
   "devDependencies": {
     "@craco/craco": "^6.4.3",
-    "antd": "^4.17.4"
+    "antd": "^4.17.4",
+    "axios": "^0.24.0"
   }
 }
