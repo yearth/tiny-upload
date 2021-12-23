@@ -23,8 +23,6 @@ app.use(ctx => {
     const targetPath = `${UPLOAD_DIR}/${filename}`;
 
     fsEx.move(cachePath, targetPath);
-
-    // ctx.body = "hello world";
   }
 });
 
