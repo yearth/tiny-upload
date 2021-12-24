@@ -37,6 +37,7 @@ app.use(async ctx => {
   } else if (url === "/merge") {
     const { ext, hash, size } = ctx.request.body;
     const targetPath = path.resolve(UPLOAD_DIR, `${hash}.${ext}`);
+
     // 1. 把 chunks 读出来，并且按照 idx 排序
     const chunksDir = path.resolve(UPLOAD_DIR, hash);
     let chunks = await fsEx.readdir(chunksDir);
@@ -58,15 +59,15 @@ app.use(async ctx => {
       });
     };
 
-    const pips = chunks.map((c, i) =>
+    const pips = chunks.map((c, i) => {
       pipStream(
         c,
         fsEx.createWriteStream(targetPath, {
           start: i * size,
           end: (i + 1) * size
         })
-      )
-    );
+      );
+    });
 
     await Promise.all(pips);
 
@@ -75,6 +76,27 @@ app.use(async ctx => {
 
     ctx.body = {
       msg: "merge success"
+    };
+  } else if (url === "/check") {
+    const { hash, ext } = ctx.request.body;
+    const targetPath = path.resolve(UPLOAD_DIR, `${hash}.${ext}`);
+
+    // 1. 如果文件存在，直接告诉前端，loaded
+    let uploaded = false;
+    if (fsEx.existsSync(targetPath)) {
+      uploaded = true;
+    }
+
+    // 2. 如果 chunksDir 存在则去读取 chunks
+    const chunksDir = path.resolve(UPLOAD_DIR, hash);
+    const chunks = fsEx.existsSync(chunksDir)
+      ? // 读取 chunks，并且过滤隐藏文件
+        fsEx.readdirSync(chunksDir).filter(v => v[0] !== ".")
+      : [];
+
+    ctx.body = {
+      uploaded,
+      chunks
     };
   }
 });

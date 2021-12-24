@@ -55,9 +55,7 @@ export function TinyUpload() {
     return chunks;
   };
 
-  const handleUpload = async () => {
-    const chunks = createFileChunks(file, CHUNK_SIZE);
-    const hash = await caculateHashWorker(chunks);
+  const sendFileChunks = (chunks, hash) => {
     const reqs = chunks
       .map((c, i) => ({
         name: `${hash}-${i}`,
@@ -72,13 +70,46 @@ export function TinyUpload() {
         axios.post("/api/upload", form);
       });
 
-    await Promise.all(reqs);
+    return Promise.all(reqs);
+  };
 
-    axios.post("/api/merge", {
+  const mergeFileChunks = hash => {
+    return axios.post("/api/merge", {
       ext: getFileExt(file.name),
       size: CHUNK_SIZE,
       hash
     });
+  };
+
+  const checkFileChunks = hash => {
+    return axios.post("/api/check", {
+      hash,
+      ext: getFileExt(file.name)
+    });
+  };
+
+  const handleUpload = async () => {
+    let chunks = createFileChunks(file, CHUNK_SIZE);
+    const hash = await caculateHashWorker(chunks);
+
+    // 1. 查询后端是否存在文件
+    const {
+      data: { uploaded, chunks: remoteChunks = [] }
+    } = await checkFileChunks(hash);
+
+    // 2. 如果文件存在，直接提示秒传成功，终止后续操作
+    if (uploaded) {
+      alert("秒传成功！");
+      return;
+    }
+
+    // 3. 如果文件不存在，根据 chunkList 过滤一遍 chunks，之前传过的就不传了
+    chunks = chunks.filter((_, i) => !remoteChunks.includes(`${hash}-${i}`));
+
+    console.log("chunks", chunks);
+
+    await sendFileChunks(chunks, hash);
+    await mergeFileChunks(hash);
   };
 
   return (
