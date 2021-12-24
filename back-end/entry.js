@@ -18,14 +18,25 @@ app.use(ctx => {
 
   if (url === "/upload") {
     const { file } = ctx.request.files;
-    const filename = file.name;
+    const { name } = ctx.request.body;
+    const hash = name.split("-")[0];
+    const chunksDir = path.resolve(UPLOAD_DIR, hash);
+
+    if (!fsEx.existsSync(chunksDir)) {
+      fsEx.mkdirSync(chunksDir);
+    }
+
     const cachePath = file.path;
-    const targetPath = `${UPLOAD_DIR}/${filename}`;
+    const targetPath = path.resolve(UPLOAD_DIR, `${hash}/${name}`);
 
     fsEx.move(cachePath, targetPath);
 
     ctx.body = {
       msg: "success"
+    };
+  } else if (url === "/merge") {
+    ctx.body = {
+      msg: "merge success"
     };
   }
 });

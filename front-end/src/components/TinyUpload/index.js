@@ -1,6 +1,8 @@
 import { Button, Progress } from "antd";
 import React, { useState } from "react";
+import { getFileExt, toPercentage } from "../../utils";
 
+import { CHUNK_SIZE } from "../../global";
 import axios from "axios";
 
 export function TinyUpload() {
@@ -14,7 +16,7 @@ export function TinyUpload() {
   };
 
   const caculateHashWorker = chunks => {
-    return new Promise((resolve, reject) => {
+    return new Promise(resolve => {
       const worker = new Worker("/hash.js");
       worker.postMessage({
         chunks
@@ -22,7 +24,8 @@ export function TinyUpload() {
 
       worker.onmessage = e => {
         const { progress, hash } = e.data;
-        setHashProgress(Number(progress).toFixed(2));
+
+        setHashProgress(toPercentage(progress));
 
         if (hash) {
           resolve(hash);
@@ -53,18 +56,28 @@ export function TinyUpload() {
   };
 
   const handleUpload = async () => {
-    const chunks = createFileChunks(file);
+    const chunks = createFileChunks(file, CHUNK_SIZE);
     const hash = await caculateHashWorker(chunks);
-    console.log("hash", hash);
+    const reqs = chunks
+      .map((c, i) => ({
+        name: `${hash}-${i}`,
+        file: c.file
+      }))
+      .map(({ name, file }) => {
+        const form = new FormData();
 
-    // ! last step: send data
-    // const form = new FormData();
-    // form.append("file", file);
-    // axios.post("/api/upload", form, {
-    //   onUploadProgress: p => {
-    //     setUploadProgress(((p.loaded / p.total) * 100) | 0);
-    //   }
-    // });
+        form.append("name", name);
+        form.append("file", file);
+
+        axios.post("/api/upload", form);
+      });
+
+    await Promise.all(reqs);
+
+    axios.post("/api/merge", {
+      ext: getFileExt(file.name),
+      size: CHUNK_SIZE
+    });
   };
 
   return (
