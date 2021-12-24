@@ -13,7 +13,7 @@ app.use(
   })
 );
 
-app.use(ctx => {
+app.use(async ctx => {
   const { url, query } = ctx.request;
 
   if (url === "/upload") {
@@ -35,6 +35,44 @@ app.use(ctx => {
       msg: "success"
     };
   } else if (url === "/merge") {
+    const { ext, hash, size } = ctx.request.body;
+    const targetPath = path.resolve(UPLOAD_DIR, `${hash}.${ext}`);
+    // 1. 把 chunks 读出来，并且按照 idx 排序
+    const chunksDir = path.resolve(UPLOAD_DIR, hash);
+    let chunks = await fsEx.readdir(chunksDir);
+    chunks = chunks
+      .sort((a, b) => a.split("-")[1] - b.split("-")[1])
+      .map(c => path.resolve(chunksDir, c));
+
+    // 2. 通过 stream 把 chunks merge 成一个完整的文件
+    const pipStream = (file, writeStream) => {
+      return new Promise(resolve => {
+        const readStream = fsEx.createReadStream(file);
+        readStream.on("end", () => {
+          // 读完删掉碎片
+          fsEx.unlinkSync(file);
+          resolve();
+        });
+        // 一边读一边写
+        readStream.pipe(writeStream);
+      });
+    };
+
+    const pips = chunks.map((c, i) =>
+      pipStream(
+        c,
+        fsEx.createWriteStream(targetPath, {
+          start: i * size,
+          end: (i + 1) * size
+        })
+      )
+    );
+
+    await Promise.all(pips);
+
+    // 3. 删掉 chunk 目录
+    fsEx.rmdir(chunksDir);
+
     ctx.body = {
       msg: "merge success"
     };

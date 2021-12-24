@@ -76,7 +76,8 @@ export function TinyUpload() {
 
     axios.post("/api/merge", {
       ext: getFileExt(file.name),
-      size: CHUNK_SIZE
+      size: CHUNK_SIZE,
+      hash
     });
   };
 
